@@ -1,0 +1,227 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Interactive CSV Chart</title>
+    <!-- CSS Stylesheet -->
+    <link rel="stylesheet" href="style.css">
+    <!-- Plotly.js CDN -->
+    <script src="https://cdn.plot.ly/plotly-2.35.2.min.js"></script>
+    <!-- PapaParse CDN for CSV parsing -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
+</head>
+<body>
+    <h1>Interactive Chart from CSV Data</h1>
+    <p>Select your CSV file containing columns: Epoch, Temp C, Humidity %, Pressure mB.</p>
+    <input type="file" id="csvFile" accept=".csv">
+    <p>Or enter a URL to a CSV file:</p>
+    <input type="text" id="csvUrl" placeholder="https://example.com/data.csv">
+    <button id="loadUrl">Load from URL</button>
+    <div id="chart"></div>
+    
+    <!-- Auto-scale buttons -->
+    <div class="button-container">
+        <button id="autoScaleY">Auto-Scale Y Axis</button>
+    </div>
+
+    <script>
+        document.getElementById('csvFile').addEventListener('change', handleFileSelect);
+        document.getElementById('loadUrl').addEventListener('click', handleUrlLoad);
+        
+        // Make chart responsive to window size changes
+        window.addEventListener('resize', function() {
+            const chartDiv = document.getElementById('chart');
+            if (chartDiv && chartDiv.data) {
+                Plotly.Plots.resize(chartDiv);
+            }
+        });
+        
+        // Store global data ranges
+        let globalDataRanges = null;
+
+        function parseAndPlot(csvData) {
+            Papa.parse(csvData, {
+                header: true,
+                dynamicTyping: true,
+                complete: function(results) {
+                    const data = results.data;
+                    if (results.errors.length > 0) {
+                        console.error('CSV parsing errors:', results.errors);
+                        alert('Error parsing CSV file.');
+                        return;
+                    }
+
+                    // Extract columns with correct header names
+                    const time = data.map(row => new Date(row.Epoch * 1000)); // Convert epoch to Date
+                    const temp = data.map(row => row['Temp C']);
+                    const humidity = data.map(row => row['Humidity %']);
+                    const pressure = data.map(row => row['Pressure mB']);
+
+                    // Find min and max time for autoscaling
+                    const minTime = new Date(Math.min(...time));
+                    const maxTime = new Date(Math.max(...time));
+                    
+                    // Store data ranges globally for button functionality
+                    globalDataRanges = {
+                        time: { min: minTime, max: maxTime },
+                        temp: { min: Math.min(...temp), max: Math.max(...temp) },
+                        humidity: { min: Math.min(...humidity), max: Math.max(...humidity) },
+                        pressure: { min: Math.min(...pressure), max: Math.max(...pressure) }
+                    };
+
+                    // Create traces
+                    const traceTemp = {
+                        x: time,
+                        y: temp,
+                        mode: 'lines',
+                        name: 'Temperature (C)',
+                        yaxis: 'y'
+                    };
+
+                    const traceHumidity = {
+                        x: time,
+                        y: humidity,
+                        mode: 'lines',
+                        name: 'Humidity (%)',
+                        yaxis: 'y2'
+                    };
+
+                    const tracePressure = {
+                        x: time,
+                        y: pressure,
+                        mode: 'lines',
+                        name: 'Pressure (mB)',
+                        yaxis: 'y3'
+                    };
+
+                    // Layout with multiple y-axes and zoom, autoscale x to data range
+                    const layout = {
+                        title: 'Environmental Data Over Time',
+                        xaxis: {
+                            title: 'Time',
+                            type: 'date',
+                            range: [minTime, maxTime], // Autoscale to data range
+                            rangeselector: { buttons: [{ count: 1, label: '1d', step: 'day', stepmode: 'backward' }, { step: 'all' }] },
+                            rangeslider: { visible: true },
+                            zoom: true
+                        },
+                        yaxis: {
+                            title: 'Temperature (C)',
+                            side: 'left',
+                            position: 0
+                        },
+                        yaxis2: {
+                            title: 'Humidity (%)',
+                            overlaying: 'y',
+                            side: 'right',
+                            position: 1
+                        },
+                        yaxis3: {
+                            title: 'Pressure (mB)',
+                            overlaying: 'y',
+                            side: 'right',
+                            position: 0.95,
+                            anchor: 'free'
+                        },
+                        dragmode: 'zoom', // Enable zoom by default
+                        hovermode: 'x unified',
+                        legend: { orientation: 'h' }
+                    };
+
+                    // Plot the chart
+                    Plotly.newPlot('chart', [traceTemp, traceHumidity, tracePressure], layout);
+                    
+                    // Setup auto-scale button listeners after chart is created
+                    setupAutoScaleButtons();
+                }
+            });
+        }
+        
+        function setupAutoScaleButtons() {
+            // Remove existing event listeners if any
+            const btnY = document.getElementById('autoScaleY');
+            
+            // Create new button with listeners
+            const btnYNew = btnY.cloneNode(true);
+            
+            btnY.parentNode.replaceChild(btnYNew, btnY);
+            
+            btnYNew.addEventListener('click', function() {
+                // Get current plot layout to see what's visible
+                const layout = document.getElementById('chart').layout;
+                
+                // Get the visible time range from xaxis
+                const visibleTimeRange = layout.xaxis.range;
+                const visibleMinTime = new Date(visibleTimeRange[0]);
+                const visibleMaxTime = new Date(visibleTimeRange[1]);
+                
+                // Filter data points within the visible time range
+                const visibleTempPoints = [];
+                const visibleHumidityPoints = [];
+                const visiblePressurePoints = [];
+                
+                // Get the plotly data to access the full dataset
+                const plotlyData = document.getElementById('chart').data;
+                const timeData = plotlyData[0].x; // All time points
+                const tempData = plotlyData[0].y;
+                const humidityData = plotlyData[1].y;
+                const pressureData = plotlyData[2].y;
+                
+                for (let i = 0; i < timeData.length; i++) {
+                    const pointTime = new Date(timeData[i]);
+                    if (pointTime >= visibleMinTime && pointTime <= visibleMaxTime) {
+                        visibleTempPoints.push(tempData[i]);
+                        visibleHumidityPoints.push(humidityData[i]);
+                        visiblePressurePoints.push(pressureData[i]);
+                    }
+                }
+                
+                // Calculate min/max for visible points only
+                if (visibleTempPoints.length > 0) {
+                    const update = {
+                        'yaxis.range': [Math.min(...visibleTempPoints), Math.max(...visibleTempPoints)],
+                        'yaxis2.range': [Math.min(...visibleHumidityPoints), Math.max(...visibleHumidityPoints)],
+                        'yaxis3.range': [Math.min(...visiblePressurePoints), Math.max(...visiblePressurePoints)]
+                    };
+                    Plotly.relayout('chart', update);
+                }
+            });
+        }
+
+        function handleFileSelect(event) {
+            const file = event.target.files[0];
+            if (!file) return;
+
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                parseAndPlot(e.target.result);
+            };
+            reader.readAsText(file);
+        }
+
+        function handleUrlLoad() {
+            const url = document.getElementById('csvUrl').value;
+            if (!url) {
+                alert('Please enter a URL.');
+                return;
+            }
+
+            fetch(url)
+                .then(response => {
+                    if (!response.ok) {
+                        throw new Error('Network response was not ok');
+                    }
+                    return response.text();
+                })
+                .then(csvData => {
+                    parseAndPlot(csvData);
+                })
+                .catch(error => {
+                    console.error('Error fetching CSV:', error);
+                    alert('Error loading CSV from URL.');
+                });
+        }
+    </script>
+</body>
+</html>

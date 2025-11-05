@@ -1,0 +1,67 @@
+* {
+    box-sizing: border-box;
+}
+
+body {
+    margin: 0;
+    padding: 15px;
+    font-family: Arial, sans-serif;
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+}
+
+h1 {
+    margin-top: 0;
+    font-size: clamp(1.2rem, 4vw, 2rem);
+}
+
+p {
+    margin: 10px 0;
+}
+
+input[type="file"], input[type="text"] {
+    width: 100%;
+    max-width: 400px;
+    padding: 8px;
+    margin: 5px 0;
+    display: block;
+}
+
+button {
+    padding: 8px 15px;
+    cursor: pointer;
+    margin: 5px 0;
+}
+
+#chart {
+    width: 100%;
+    height: calc(100vh - 350px);
+    min-height: 200px;
+    flex: 1;
+}
+
+.button-container {
+    margin-top: 10px;
+    text-align: center;
+}
+
+#autoScaleY {
+    margin: 5px;
+}
+
+@media (max-width: 768px) {
+    body {
+        padding: 10px;
+    }
+    
+    #chart {
+        height: calc(100vh - 400px);
+        min-height: 300px;
+    }
+    
+    button {
+        width: 100%;
+        max-width: none;
+    }
+}
